@@ -1,0 +1,14 @@
+numpy
+scipy
+matplotlib
+opencv-python
+SimpleITK
+nibabel
+torch
+torchvision
+monai
+requests
+streamlit
+pypdf
+python-docx
+tqdm
