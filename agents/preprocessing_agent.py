@@ -55,6 +55,27 @@ class PreprocessingAgent:
         """Loads a NIfTI or DICOM CT scan from disk."""
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"CT volume not found at: {file_path}")
+
+        if os.path.isdir(file_path):
+            dicom_files = []
+            for root, _, files in os.walk(file_path):
+                for filename in files:
+                    if filename.lower().endswith((".dcm", ".dicom")):
+                        dicom_files.append(os.path.join(root, filename))
+            if not dicom_files:
+                nifti_files = []
+                for root, _, files in os.walk(file_path):
+                    for filename in files:
+                        if filename.lower().endswith((".nii", ".nii.gz", ".mha", ".mhd")):
+                            nifti_files.append(os.path.join(root, filename))
+                if not nifti_files:
+                    raise ValueError(f"No valid CT volume files were found in the uploaded folder: {file_path}")
+                return sitk.ReadImage(nifti_files[0], sitk.sitkFloat32)
+
+            reader = sitk.ImageSeriesReader()
+            reader.SetFileNames(sorted(dicom_files))
+            return reader.Execute()
+
         return sitk.ReadImage(file_path, sitk.sitkFloat32)
 
     def reorient_to_ras(self, image: sitk.Image) -> sitk.Image:

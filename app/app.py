@@ -947,15 +947,16 @@ def render_dashboard_screen():
             unsafe_allow_html=True,
         )
         st.markdown("<div style='height: 0.8rem;'></div>", unsafe_allow_html=True)
-        uploaded_file = st.file_uploader(
-            "Select a CT scan",
+        uploaded_files = st.file_uploader(
+            "Select CT scan files",
             type=["nii", "nii.gz", "dcm", "dicom"],
             label_visibility="collapsed",
-            accept_multiple_files=False,
+            accept_multiple_files=True,
         )
 
-        if uploaded_file is not None:
-            st.caption(f"Selected file: {uploaded_file.name}")
+        if uploaded_files:
+            names = ", ".join(file.name for file in uploaded_files)
+            st.caption(f"Selected files: {names}")
         else:
             st.markdown(
                 """
@@ -963,7 +964,7 @@ def render_dashboard_screen():
                     <div>
                         <div style='font-size: 2.3rem; color: #0d4fa7;'>⇪</div>
                         <div style='font-weight: 600; color: #123d83; margin-top: 0.5rem;'>Drop your CT files here</div>
-                        <div class='small-muted' style='margin-top: 0.3rem;'>Supported: 3D NIfTI or supported 3D DICOM volumes</div>
+                        <div class='small-muted' style='margin-top: 0.3rem;'>Supported: 3D NIfTI or a DICOM series folder</div>
                     </div>
                 </div>
                 """,
@@ -1002,18 +1003,30 @@ def render_dashboard_screen():
                 unsafe_allow_html=True,
             )
 
-    if uploaded_file is not None and analyze_button:
+    if uploaded_files and analyze_button:
         os.makedirs("data/uploads", exist_ok=True)
-        safe_filename = os.path.basename(uploaded_file.name)
-        file_path = os.path.join("data", "uploads", safe_filename)
-        with open(file_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+        study_id = uuid.uuid4().hex
+        study_dir = os.path.join("data", "uploads", study_id)
+        os.makedirs(study_dir, exist_ok=True)
+
+        if len(uploaded_files) == 1 and uploaded_files[0].name.lower().endswith((".nii", ".nii.gz", ".mha", ".mhd")):
+            file_path = os.path.join(study_dir, os.path.basename(uploaded_files[0].name))
+            with open(file_path, "wb") as f:
+                f.write(uploaded_files[0].getbuffer())
+            target_path = file_path
+        else:
+            for uploaded_file in uploaded_files:
+                safe_name = os.path.basename(uploaded_file.name)
+                target_path = os.path.join(study_dir, safe_name)
+                with open(target_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+            target_path = study_dir
 
         from main import run_pipeline
 
         try:
             with st.spinner("Analyzing the CT scan..."):
-                result = run_pipeline(file_path)
+                result = run_pipeline(target_path)
         except (OSError, RuntimeError, ValueError) as exc:
             st.error(f"CT analysis failed: {exc}")
             return

@@ -1,5 +1,7 @@
 import os
 import SimpleITK as sitk
+import matplotlib
+matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 from agents.preprocessing_agent import PreprocessingAgent
 from agents.segmentation_agent import SegmentationAgent
@@ -7,8 +9,35 @@ from agents.lesion_analysis_agent import LesionAnalysisAgent
 
 
 def load_ct_volume(raw_ct_path):
+    candidate = raw_ct_path
+    if os.path.isdir(raw_ct_path):
+        dicom_files = []
+        for root, _, files in os.walk(raw_ct_path):
+            for filename in files:
+                lower = filename.lower()
+                if lower.endswith((".dcm", ".dicom")):
+                    dicom_files.append(os.path.join(root, filename))
+        if dicom_files:
+            reader = sitk.ImageSeriesReader()
+            reader.SetFileNames(sorted(dicom_files))
+            try:
+                image = reader.Execute()
+            except RuntimeError as exc:
+                raise ValueError("The uploaded DICOM folder could not be reconstructed into a 3D CT volume.") from exc
+            candidate = image
+        else:
+            nifti_files = []
+            for root, _, files in os.walk(raw_ct_path):
+                for filename in files:
+                    lower = filename.lower()
+                    if lower.endswith((".nii", ".nii.gz", ".mha", ".mhd")):
+                        nifti_files.append(os.path.join(root, filename))
+            if not nifti_files:
+                raise ValueError("The uploaded folder does not contain a valid CT volume or DICOM series.")
+            candidate = nifti_files[0]
+
     try:
-        image = sitk.ReadImage(raw_ct_path)
+        image = sitk.ReadImage(candidate) if not isinstance(candidate, sitk.Image) else candidate
     except RuntimeError as exc:
         raise ValueError("The uploaded file could not be read as a CT volume.") from exc
 

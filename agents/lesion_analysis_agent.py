@@ -943,9 +943,10 @@ class LesionAnalysisAgent:
             )
 
         if np.any(crop_tum):
+            crop_tum_bool = crop_tum.astype(bool)
 
             ax1.contour(
-                crop_tum,
+                crop_tum_bool,
                 levels=[0.5],
                 colors=["red"],
                 linewidths=2.5
@@ -960,7 +961,7 @@ class LesionAnalysisAgent:
                 dtype=np.float32
             )
 
-            overlay[crop_tum] = [
+            overlay[crop_tum_bool] = [
                 1.0,
                 0.0,
                 0.0,
@@ -1325,6 +1326,28 @@ class LesionAnalysisAgent:
                 f"CT file not found: {raw_ct_path}"
             )
 
+        if os.path.isdir(raw_ct_path):
+            dicom_files = []
+            for root, _, files in os.walk(raw_ct_path):
+                for filename in files:
+                    if filename.lower().endswith((".dcm", ".dicom")):
+                        dicom_files.append(os.path.join(root, filename))
+            if dicom_files:
+                reader = sitk.ImageSeriesReader()
+                reader.SetFileNames(sorted(dicom_files))
+                raw_img = reader.Execute()
+            else:
+                nifti_files = []
+                for root, _, files in os.walk(raw_ct_path):
+                    for filename in files:
+                        if filename.lower().endswith((".nii", ".nii.gz", ".mha", ".mhd")):
+                            nifti_files.append(os.path.join(root, filename))
+                if not nifti_files:
+                    raise ValueError(f"No valid CT volume files were found in the uploaded folder: {raw_ct_path}")
+                raw_img = sitk.ReadImage(nifti_files[0])
+        else:
+            raw_img = sitk.ReadImage(raw_ct_path)
+
         if not os.path.exists(liver_mask_path):
 
             raise FileNotFoundError(
@@ -1340,10 +1363,6 @@ class LesionAnalysisAgent:
         # ==========================================================
         # LOAD CT
         # ==========================================================
-
-        raw_img = sitk.ReadImage(
-            raw_ct_path
-        )
 
         raw_arr = sitk.GetArrayFromImage(
             raw_img
